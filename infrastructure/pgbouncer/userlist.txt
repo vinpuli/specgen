@@ -1,0 +1,6 @@
+# PgBouncer userlist.txt
+# Format: "username" "password" (md5 or plaintext)
+# Generate MD5 hash: echo -n "passwordusername" | md5sum
+
+"specgen" "md5$(echo -n 'changeme123specgen' | md5sum | awk '{print $1}')"
+"postgres" "md5$(echo -n 'postgrespostgres' | md5sum | awk '{print $1}')"

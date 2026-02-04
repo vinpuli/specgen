@@ -1,0 +1,1 @@
+redis://:${REDIS_PASSWORD:-specgen_redis_password}@redis:6379/0

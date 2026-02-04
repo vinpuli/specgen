@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  # Weaviate Vector Database (local alternative to Pinecone)
+  weaviate:
+    image: semitechnologies/weaviate:latest
+    container_name: specgen_weaviate
+    environment:
+      - QUERY_DEFAULTS_LIMIT=25
+      - AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true
+      - PERSISTENCE_DATA_PATH=/var/lib/weaviate
+      - ENABLE_MODULES=text2vec-transformers
+      - TRANSFORMERS_INFERENCE_API=http://t2v-transformers:8080
+      - CLUSTER_HOSTNAME=node1
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+      - ./weaviate/pipelines:/etc/weaviate/pipelines
+    networks:
+      - specgen_network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Optional: Transformer model for text vectorization
+  t2v-transformers:
+    image: semitechnologies/transformers-inference:sentence-transformers-paraphrase-multilingual-MiniLM-L12-v2
+    container_name: specgen_t2v_transformers
+    environment:
+      - ENABLE_CUDA=0
+    ports:
+      - "9000:8080"
+    networks:
+      - specgen_network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  # Weaviate Console (optional UI)
+  weaviate-console:
+    image: semitechnologies/weaviate-console:latest
+    container_name: specgen_weaviate_console
+    environment:
+      - WEAVIATE_URL=http://weaviate:8080
+    ports:
+      - "8000:3000"
+    networks:
+      - specgen_network
+    depends_on:
+      - weaviate
+
+volumes:
+  weaviate_data:
+    driver: local
+
+networks:
+  specgen_network:
+    driver: bridge

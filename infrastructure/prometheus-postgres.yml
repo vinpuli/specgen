@@ -1,0 +1,80 @@
+# Prometheus configuration for PostgreSQL monitoring
+# This file configures Prometheus to scrape PostgreSQL metrics
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'specgen'
+    env: '${APP_ENV:-development}'
+
+# Alertmanager configuration (optional)
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+# Load rules once and periodically evaluate
+rule_files:
+  - '/etc/prometheus/postgres_rules.yml'
+
+# Scrape configurations
+scrape_configs:
+  # PostgreSQL exporter
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+      labels:
+        service: 'postgresql'
+        component: 'database'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '(.+):\\d+'
+        replacement: '${1}'
+    metrics_path: '/metrics'
+    scheme: http
+    tls_config:
+      insecure_skip_verify: false
+
+  # PgBouncer exporter (if available)
+  - job_name: 'pgbouncer'
+    static_configs:
+      - targets: ['pgbouncer-exporter:9127']
+      labels:
+        service: 'pgbouncer'
+        component: 'connection-pool'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '(.+):\\d+'
+        replacement: '${1}'
+    metrics_path: '/metrics'
+    scheme: http
+
+  # Self monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    metrics_path: /metrics
+
+  # Node exporter (system metrics)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '(.+):\\d+'
+        replacement: '${1}'
+
+  # Custom application metrics
+  - job_name: 'specgen-app'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['backend:8000']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '(.+):\\d+'
+        replacement: '${1}'

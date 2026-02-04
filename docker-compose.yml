@@ -1,0 +1,326 @@
+version: '3.8'
+
+services:
+  # ========================================================================
+  # DATABASE SERVICES
+  # ========================================================================
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: specgen_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-specgen}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secure_password}
+      POSTGRES_DB: ${POSTGRES_DB:-specgen}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/init-scripts:/docker-entrypoint-initdb.d
+      - ./infrastructure/certs:/certs:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: >
+      postgres
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=768MB
+      -c work_mem=16MB
+      -c maintenance_work_mem=128MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c ssl=on
+      -c ssl_cert_file=/certs/server.crt
+      -c ssl_key_file=/certs/server.key
+    networks:
+      - specgen_network
+
+  pgbouncer:
+    image: pgbouncer/pgbouncer:alpine
+    container_name: specgen_pgbouncer
+    environment:
+      DATABASES_HOST: postgres
+      DATABASES_PORT: 5432
+      DATABASES_USER: ${POSTGRES_USER}
+      DATABASES_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASES_NAME: ${POSTGRES_DB}
+      PGBOUNCER_LISTEN_PORT: 6432
+      PGBOUNCER_AUTH_TYPE: md5
+      PGBOUNCER_POOL_MODE: transaction
+      PGBOUNCER_MAX_CLIENT_CONN: 100
+      PGBOUNCER_DEFAULT_POOL_SIZE: 20
+      PGBOUNCER_MIN_POOL_SIZE: 5
+      PGBOUNCER_RESERVE_POOL_SIZE: 5
+      PGBOUNCER_SERVER_IDLE_TIMEOUT: 600
+    ports:
+      - "6432:6432"
+    depends_on:
+      - postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 6432 -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./infrastructure/pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./infrastructure/pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    networks:
+      - specgen_network
+
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: specgen_postgres_exporter
+    environment:
+      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=require
+    ports:
+      - "9187:9187"
+    depends_on:
+      - postgres
+    networks:
+      - specgen_network
+
+  # ========================================================================
+  # CACHE SERVICES
+  # ========================================================================
+
+  redis:
+    image: redis:7-alpine
+    container_name: specgen_redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-specgen_redis_password} --maxmemory 512mb --maxmemory-policy allkeys-lru --appendonly yes --appendfsync everysec
+    volumes:
+      - redis_data:/data
+      - ./infrastructure/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-specgen_redis_password}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - specgen_network
+    sysctls:
+      - net.core.somaxconn=65535
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: specgen_redis_commander
+    environment:
+      - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD:-specgen_redis_password}
+      - HTTP_PORT=8081
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    networks:
+      - specgen_network
+
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: specgen_redis_exporter
+    environment:
+      - REDIS_ADDR=redis://:${REDIS_PASSWORD:-specgen_redis_password}@redis:6379
+    ports:
+      - "9121:9121"
+    depends_on:
+      - redis
+    networks:
+      - specgen_network
+
+  # ========================================================================
+  # VECTOR DATABASE SERVICES
+  # ========================================================================
+
+  weaviate:
+    image: semitechnologies/weaviate:latest
+    container_name: specgen_weaviate
+    environment:
+      - QUERY_DEFAULTS_LIMIT=25
+      - AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true
+      - PERSISTENCE_DATA_PATH=/var/lib/weaviate
+      - ENABLE_MODULES=text2vec-transformers
+      - TRANSFORMERS_INFERENCE_API=http://t2v-transformers:8080
+      - CLUSTER_HOSTNAME=node1
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    networks:
+      - specgen_network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  t2v-transformers:
+    image: semitechnologies/transformers-inference:sentence-transformers-paraphrase-multilingual-MiniLM-L12-v2
+    container_name: specgen_t2v_transformers
+    environment:
+      - ENABLE_CUDA=0
+    ports:
+      - "9000:8080"
+    networks:
+      - specgen_network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  # ========================================================================
+  # STORAGE SERVICES
+  # ========================================================================
+
+  minio:
+    image: minio/minio:latest
+    container_name: specgen_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - specgen_network
+
+  mc:
+    image: minio/mc:latest
+    container_name: specgen_mc
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until curl -s http://minio:9000/minio/health/live; do echo 'Waiting for MinIO...'; sleep 2; done;
+      mc alias set myminio http://minio:9000 ${S3_ACCESS_KEY:-minioadmin} ${S3_SECRET_KEY:-minioadmin};
+      mc mb myminio/${S3_BUCKET:-specgen-artifacts} --ignore-existing;
+      mc anonymous set public myminio/${S3_BUCKET:-specgen-artifacts};
+      exit 0;
+      "
+    networks:
+      - specgen_network
+
+  # ========================================================================
+  # MONITORING SERVICES
+  # ========================================================================
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: specgen_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infrastructure/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    networks:
+      - specgen_network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: specgen_grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    networks:
+      - specgen_network
+
+  # ========================================================================
+  # APPLICATION SERVICES
+  # ========================================================================
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: specgen_backend
+    environment:
+      - APP_ENV=development
+      - DATABASE_URL=postgresql+asyncpg://specgen:specgen@pgbouncer:6432/specgen
+      - REDIS_HOST=redis
+      - S3_PROVIDER=minio
+      - S3_ENDPOINT=http://minio:9000
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY:-minioadmin}
+      - S3_SECRET_KEY=${S3_SECRET_KEY:-minioadmin}
+      - WEAVIATE_URL=http://weaviate:8080
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      weaviate:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app/backend:ro
+      - ./app:/app/app:ro
+    networks:
+      - specgen_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: specgen_frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app:ro
+    networks:
+      - specgen_network
+
+# ========================================================================
+# VOLUMES
+# ========================================================================
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  weaviate_data:
+    driver: local
+  minio_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+# ========================================================================
+# NETWORKS
+# ========================================================================
+
+networks:
+  specgen_network:
+    driver: bridge
