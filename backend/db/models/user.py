@@ -17,6 +17,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     Index,
+    Integer,
     String,
     Text,
 )
@@ -112,6 +113,18 @@ class User(Base):
         String(255),
         nullable=True,
         doc="TOTP secret (encrypted at rest)",
+    )
+    backup_codes = Column(
+        ARRAY(String(10)),
+        default=list,
+        nullable=True,
+        doc="Backup codes for 2FA recovery (hashed)",
+    )
+    backup_codes_count = Column(
+        Integer,
+        default=0,
+        nullable=False,
+        doc="Number of remaining unused backup codes",
     )
 
     # OAuth providers

@@ -10,6 +10,7 @@ This module provides:
 from datetime import datetime
 from typing import Any, List, Optional
 from uuid import UUID
+import enum
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
@@ -120,6 +121,94 @@ class Disable2FA(BaseModel):
 
 
 # ======================
+# Password Reset Schemas
+# ======================
+
+
+class PasswordResetRequest(BaseModel):
+    """Password reset request schema."""
+
+    email: EmailStr = Field(..., description="User's email address")
+
+
+class PasswordResetConfirm(BaseModel):
+    """Password reset confirmation schema."""
+
+    token: str = Field(..., description="Password reset token")
+    new_password: str = Field(..., min_length=8, description="New password")
+    confirm_password: str = Field(..., description="Confirm new password")
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        """Validate new password strength."""
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters")
+        if not any(c.isupper() for c in v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not any(c.islower() for c in v):
+            raise ValueError("Password must contain at least one lowercase letter")
+        if not any(c.isdigit() for c in v):
+            raise ValueError("Password must contain at least one digit")
+        return v
+
+
+# ======================
+# Magic Link Schemas
+# ======================
+
+
+class MagicLinkRequest(BaseModel):
+    """Magic link request schema."""
+
+    email: EmailStr = Field(..., description="User's email address")
+
+
+class MagicLinkVerify(BaseModel):
+    """Magic link verification schema."""
+
+    token: str = Field(..., description="Magic link token")
+
+
+# ======================
+# OAuth Schemas
+# ======================
+
+
+class OAuthProviderEnum(str, enum.Enum):
+    """OAuth provider enumeration."""
+
+    GOOGLE = "google"
+    GITHUB = "github"
+    MICROSOFT = "microsoft"
+
+
+class OAuthTokenRequest(BaseModel):
+    """OAuth token exchange request schema."""
+
+    provider: OAuthProviderEnum = Field(..., description="OAuth provider")
+    code: str = Field(..., description="Authorization code from OAuth provider")
+    redirect_uri: str = Field(..., description="OAuth callback redirect URI")
+
+
+class OAuthCallback(BaseModel):
+    """OAuth callback data schema."""
+
+    code: str = Field(..., description="Authorization code from OAuth provider")
+    state: Optional[str] = Field(default=None, description="State parameter")
+    provider: OAuthProviderEnum = Field(..., description="OAuth provider name")
+
+
+class OAuthUserInfo(BaseModel):
+    """OAuth user information schema."""
+
+    email: str = Field(..., description="User's email")
+    name: Optional[str] = Field(default=None, description="User's name")
+    picture: Optional[str] = Field(default=None, description="User's avatar URL")
+    provider_id: str = Field(..., description="Provider's user ID")
+
+
+# ======================
 # Response Schemas
 # ======================
 
@@ -187,27 +276,6 @@ class RefreshTokenRequest(BaseModel):
 
     refresh_token: str = Field(..., description="Refresh token")
 
-
-# ======================
-# OAuth Schemas
-# ======================
-
-
-class OAuthProvider(BaseModel):
-    """OAuth provider info schema."""
-
-    provider: str = Field(..., description="OAuth provider name")
-    auth_url: str = Field(..., description="OAuth authorization URL")
-
-
-class OAuthCallback(BaseModel):
-    """OAuth callback request schema."""
-
-    code: str = Field(..., description="Authorization code from OAuth provider")
-    state: Optional[str] = Field(default=None, description="State parameter")
-    provider: str = Field(..., description="OAuth provider name")
-
-
 # ======================
 # Session Schemas
 # ======================
@@ -235,3 +303,68 @@ class ActiveSessions(BaseModel):
 
     sessions: List[SessionResponse]
     current_session_id: str
+
+
+# ======================
+# Two-Factor Authentication Schemas
+# ======================
+
+
+class Enable2FARequest(BaseModel):
+    """Enable 2FA request schema."""
+
+    password: str = Field(..., description="Current password for verification")
+
+
+class Enable2FAResponse(BaseModel):
+    """Enable 2FA response with QR code and backup codes."""
+
+    secret: str = Field(..., description="TOTP secret for authenticator app")
+    qr_code_uri: str = Field(..., description="URI for QR code generation")
+    backup_codes: List[str] = Field(..., description="One-time backup codes (store safely)")
+
+
+class Verify2FASetupRequest(BaseModel):
+    """Verify 2FA setup request schema."""
+
+    code: str = Field(..., min_length=6, max_length=6, description="2FA code from authenticator")
+
+
+class Disable2FARequest(BaseModel):
+    """Disable 2FA request schema."""
+
+    password: str = Field(..., description="Current password for verification")
+    code: str = Field(..., min_length=6, max_length=6, description="2FA code or backup code")
+
+
+class LoginWith2FARequest(BaseModel):
+    """Login with 2FA code request schema."""
+
+    email: EmailStr = Field(..., description="User's email address")
+    password: str = Field(..., description="User's password")
+    two_factor_code: Optional[str] = Field(
+        default=None, min_length=6, max_length=6, description="2FA code from authenticator"
+    )
+    backup_code: Optional[str] = Field(
+        default=None, min_length=8, max_length=8, description="Backup code if no 2FA device"
+    )
+
+
+class VerifyBackupCodeRequest(BaseModel):
+    """Verify backup code request schema."""
+
+    code: str = Field(..., min_length=8, max_length=8, description="Backup code")
+
+
+class RegenerateBackupCodesRequest(BaseModel):
+    """Regenerate backup codes request schema."""
+
+    password: str = Field(..., description="Current password for verification")
+    code: str = Field(..., min_length=6, max_length=6, description="2FA code from authenticator")
+
+
+class RegenerateBackupCodesResponse(BaseModel):
+    """Regenerate backup codes response schema."""
+
+    backup_codes: List[str] = Field(..., description="New backup codes (store safely)")
+    message: str = Field(default="Backup codes regenerated successfully")

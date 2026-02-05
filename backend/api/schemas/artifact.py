@@ -187,6 +187,15 @@ class ArtifactVersionDetail(ArtifactVersionResponse):
     diff_from_previous: Optional[str] = None
 
 
+class ArtifactVersionListResponse(BaseModel):
+    """Artifact version list response with pagination."""
+
+    versions: List[ArtifactVersionResponse]
+    total: int
+    page: int
+    page_size: int
+
+
 # ======================
 # Artifact Generation
 # ======================

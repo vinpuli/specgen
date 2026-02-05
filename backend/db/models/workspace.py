@@ -299,6 +299,30 @@ class WorkspaceMember(Base):
         """Check if member has admin privileges."""
         return self.role in (WorkspaceRole.OWNER, WorkspaceRole.ADMIN)
 
+    def can_delete(self) -> bool:
+        """Check if member can delete workspace resources."""
+        return self.role in (WorkspaceRole.OWNER, WorkspaceRole.ADMIN)
+
+    def can_invite(self) -> bool:
+        """Check if member can invite new members."""
+        return self.role in (WorkspaceRole.OWNER, WorkspaceRole.ADMIN)
+
+    def can_remove_member(self) -> bool:
+        """Check if member can remove other members."""
+        return self.role in (WorkspaceRole.OWNER, WorkspaceRole.ADMIN)
+
+    def can_change_role(self) -> bool:
+        """Check if member can change other members' roles."""
+        return self.role == WorkspaceRole.OWNER
+
+    def can_manage_billing(self) -> bool:
+        """Check if member can manage billing settings."""
+        return self.role == WorkspaceRole.OWNER
+
+    def can_delete_workspace(self) -> bool:
+        """Check if member can delete the workspace."""
+        return self.role == WorkspaceRole.OWNER
+
 
 # Import for relationship setup (avoid circular import)
 from backend.db.models.user import User  # noqa: E402
