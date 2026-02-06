@@ -821,6 +821,8 @@ class ProgressTracker:
             milestone.achieved = False
             milestone.achieved_at = None
 
+
+
 class StreamHandler:
     """Base class for stream event handlers."""
 
@@ -1081,51 +1083,6 @@ def create_default_phases() -> List[ProgressPhase]:
             ],
         ),
     ]
-
-
-class StreamHandler:
-    """Base class for stream event handlers."""
-
-    def __init__(self):
-        """Initialize the handler."""
-        self._handlers: Dict[EventType, List[Callable]] = {}
-        self._category_handlers: Dict[StreamEventCategory, List[Callable]] = {}
-
-    def register_handler(
-        self,
-        handler: Callable,
-        event_type: Optional[EventType] = None,
-        category: Optional[StreamEventCategory] = None,
-    ) -> None:
-        """
-        Register an event handler.
-
-        Args:
-            handler: Handler function
-            event_type: Specific event type to handle
-            category: Event category to handle
-        """
-        if event_type:
-            if event_type not in self._handlers:
-                self._handlers[event_type] = []
-            self._handlers[event_type].append(handler)
-
-        if category:
-            if category not in self._category_handlers:
-                self._category_handlers[category] = []
-            self._category_handlers[category].append(handler)
-
-    async def handle_event(self, event: StreamEvent) -> None:
-        """Handle a stream event."""
-        # Call specific event handlers
-        if event.event_type in self._handlers:
-            for handler in self._handlers[event.event_type]:
-                await handler(event)
-
-        # Call category handlers
-        if event.category in self._category_handlers:
-            for handler in self._category_handlers[event.category]:
-                await handler(event)
 
 
 class LLMOutputHandler(StreamHandler):
