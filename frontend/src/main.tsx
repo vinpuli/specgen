@@ -6,16 +6,19 @@ import './index.css'
 import './i18n/config'
 import App from './App.tsx'
 import { ErrorBoundary } from './components/error/ErrorBoundary'
+import { ToastProvider } from './components/ui'
 import { queryClient } from './lib/queryClient'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <ErrorBoundary>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
-      </ErrorBoundary>
+      <ToastProvider>
+        <ErrorBoundary>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </ErrorBoundary>
+      </ToastProvider>
     </QueryClientProvider>
   </StrictMode>,
 )
