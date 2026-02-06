@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-bg: 210 20% 98%;
+  --color-fg: 222 47% 11%;
+  --color-surface: 0 0% 100%;
+  --color-border: 214 32% 91%;
+  --color-primary: 221 83% 53%;
+  --color-primary-foreground: 0 0% 100%;
+  --color-secondary: 215 27% 94%;
+  --color-accent: 261 62% 54%;
+  --color-success: 152 69% 31%;
+  --color-warning: 36 100% 47%;
+  --color-danger: 0 84% 60%;
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+}
+
+* {
+  @apply border-border;
+}
+
+body {
+  @apply min-h-screen bg-bg text-fg antialiased;
+}

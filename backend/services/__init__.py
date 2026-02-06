@@ -63,6 +63,12 @@ from backend.services.repository_clone_service import (
     RepositoryCloneError,
     RepositoryCloneResult,
 )
+from backend.services.tree_sitter_service import (
+    TreeSitterService,
+    TreeSitterServiceError,
+    TreeSitterUnavailableError,
+    TreeSitterUnsupportedLanguageError,
+)
 
 __all__ = [
     # User service
@@ -109,4 +115,8 @@ __all__ = [
     "RepositoryCloneService",
     "RepositoryCloneError",
     "RepositoryCloneResult",
+    "TreeSitterService",
+    "TreeSitterServiceError",
+    "TreeSitterUnavailableError",
+    "TreeSitterUnsupportedLanguageError",
 ]
