@@ -30,6 +30,114 @@ class CodebaseAnalysisCreate(BaseSchema):
     branch_name: Optional[str] = Field(
         None, description="Branch name to analyze"
     )
+    directory_scope: Optional[List[str]] = Field(
+        None,
+        description="Optional list of repository directories to analyze (partial analysis)",
+    )
+    github_access_token: Optional[str] = Field(
+        None,
+        description="Optional GitHub OAuth access token for private repository access",
+    )
+    gitlab_access_token: Optional[str] = Field(
+        None,
+        description="Optional GitLab OAuth access token for private repository access",
+    )
+    gitlab_base_url: Optional[str] = Field(
+        None,
+        description="Optional GitLab base URL for self-hosted instances (e.g. https://gitlab.example.com)",
+    )
+
+
+class GitHubOAuthAuthorizeResponse(BaseSchema):
+    """Response with GitHub OAuth authorization URL for repository access."""
+
+    provider: str = Field(default="github")
+    auth_url: str = Field(..., description="GitHub OAuth authorization URL")
+    state: str = Field(..., description="OAuth state for callback validation")
+    scope: str = Field(..., description="Requested OAuth scope")
+
+
+class GitHubOAuthTokenExchangeRequest(BaseSchema):
+    """Request to exchange GitHub OAuth code for access token."""
+
+    code: str = Field(..., description="Authorization code returned by GitHub")
+    redirect_uri: str = Field(..., description="Redirect URI used in OAuth authorize request")
+
+
+class GitHubOAuthTokenResponse(BaseSchema):
+    """Response containing GitHub OAuth access token details."""
+
+    access_token: str = Field(..., description="GitHub access token")
+    token_type: str = Field(default="bearer", description="Token type")
+    scope: Optional[str] = Field(default=None, description="Granted OAuth scopes")
+
+
+class GitHubRepositorySummary(BaseSchema):
+    """Simplified GitHub repository metadata."""
+
+    id: int
+    name: str
+    full_name: str
+    private: bool
+    html_url: str
+    default_branch: Optional[str] = None
+    visibility: Optional[str] = None
+
+
+class GitHubRepositoryListResponse(BaseSchema):
+    """Response for listing accessible GitHub repositories."""
+
+    repositories: List[GitHubRepositorySummary] = Field(default_factory=list)
+    total: int = 0
+
+
+class GitLabOAuthAuthorizeResponse(BaseSchema):
+    """Response with GitLab OAuth authorization URL for repository access."""
+
+    provider: str = Field(default="gitlab")
+    auth_url: str = Field(..., description="GitLab OAuth authorization URL")
+    state: str = Field(..., description="OAuth state for callback validation")
+    scope: str = Field(..., description="Requested OAuth scope")
+    base_url: str = Field(..., description="GitLab base URL used for OAuth")
+
+
+class GitLabOAuthTokenExchangeRequest(BaseSchema):
+    """Request to exchange GitLab OAuth code for access token."""
+
+    code: str = Field(..., description="Authorization code returned by GitLab")
+    redirect_uri: str = Field(..., description="Redirect URI used in OAuth authorize request")
+    base_url: Optional[str] = Field(
+        default=None,
+        description="Optional GitLab base URL for self-hosted instances",
+    )
+
+
+class GitLabOAuthTokenResponse(BaseSchema):
+    """Response containing GitLab OAuth access token details."""
+
+    access_token: str = Field(..., description="GitLab access token")
+    token_type: str = Field(default="bearer", description="Token type")
+    scope: Optional[str] = Field(default=None, description="Granted OAuth scopes")
+    created_at: Optional[int] = Field(default=None, description="Token creation timestamp (unix)")
+
+
+class GitLabProjectSummary(BaseSchema):
+    """Simplified GitLab project metadata."""
+
+    id: int
+    name: str
+    path_with_namespace: str
+    private: bool
+    web_url: str
+    default_branch: Optional[str] = None
+    visibility: Optional[str] = None
+
+
+class GitLabProjectListResponse(BaseSchema):
+    """Response for listing accessible GitLab projects."""
+
+    projects: List[GitLabProjectSummary] = Field(default_factory=list)
+    total: int = 0
 
 
 class CodebaseAnalysisResponse(BaseSchema):

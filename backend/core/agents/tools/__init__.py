@@ -106,6 +106,49 @@ from .registry import (
     search_tools,
 )
 
+from .validation import (
+    ToolValidator,
+    ValidationResult,
+    ValidationIssue,
+    ValidationSeverity,
+    ValidationCategory,
+    SchemaDefinition,
+    create_validator,
+    validate_tool_input,
+    validate_tool_output,
+    generate_schema_from_model,
+)
+
+from .documentation import (
+    ToolDocumentationGenerator,
+    ToolDoc,
+    ParameterDoc,
+    ExampleDoc,
+    ToolStatus as DocToolStatus,
+    DocFormat,
+    create_documentation_generator,
+    create_auto_documenter,
+    generate_database_tools_docs,
+    generate_vector_tools_docs,
+)
+
+from .versioning import (
+    ToolVersionManager,
+    CompatibilityChecker,
+    VersionInfo,
+    BreakingChange,
+    CompatibilityReport,
+    ToolVersion,
+    VersionChangeType,
+    CompatibilityLevel,
+    BreakingChangeType,
+    DeprecationStatus,
+    create_version_manager,
+    create_compatibility_checker,
+    parse_version,
+    compare_versions,
+)
+
 __all__ = [
     # Database tools
     "DatabaseToolNode",
@@ -194,4 +237,41 @@ __all__ = [
     "get_tool",
     "get_tool_by_name",
     "search_tools",
+    # Validation
+    "ToolValidator",
+    "ValidationResult",
+    "ValidationIssue",
+    "ValidationSeverity",
+    "ValidationCategory",
+    "SchemaDefinition",
+    "create_validator",
+    "validate_tool_input",
+    "validate_tool_output",
+    "generate_schema_from_model",
+    # Documentation
+    "ToolDocumentationGenerator",
+    "ToolDoc",
+    "ParameterDoc",
+    "ExampleDoc",
+    "ToolStatus",
+    "DocFormat",
+    "create_documentation_generator",
+    "create_auto_documenter",
+    "generate_database_tools_docs",
+    "generate_vector_tools_docs",
+    # Versioning
+    "ToolVersionManager",
+    "CompatibilityChecker",
+    "VersionInfo",
+    "BreakingChange",
+    "CompatibilityReport",
+    "ToolVersion",
+    "VersionChangeType",
+    "CompatibilityLevel",
+    "BreakingChangeType",
+    "DeprecationStatus",
+    "create_version_manager",
+    "create_compatibility_checker",
+    "parse_version",
+    "compare_versions",
 ]

@@ -46,6 +46,23 @@ from backend.services.session_service import (
     TokenBlacklistService,
     get_token_blacklist_service,
 )
+from backend.services.github_oauth_service import (
+    GitHubOAuthService,
+    GitHubOAuthError,
+    GitHubOAuthConfigError,
+    GitHubRepositoryAccessError,
+)
+from backend.services.gitlab_oauth_service import (
+    GitLabOAuthService,
+    GitLabOAuthError,
+    GitLabOAuthConfigError,
+    GitLabRepositoryAccessError,
+)
+from backend.services.repository_clone_service import (
+    RepositoryCloneService,
+    RepositoryCloneError,
+    RepositoryCloneResult,
+)
 
 __all__ = [
     # User service
@@ -80,4 +97,16 @@ __all__ = [
     # Session service
     "TokenBlacklistService",
     "get_token_blacklist_service",
+    # GitHub OAuth service
+    "GitHubOAuthService",
+    "GitHubOAuthError",
+    "GitHubOAuthConfigError",
+    "GitHubRepositoryAccessError",
+    "GitLabOAuthService",
+    "GitLabOAuthError",
+    "GitLabOAuthConfigError",
+    "GitLabRepositoryAccessError",
+    "RepositoryCloneService",
+    "RepositoryCloneError",
+    "RepositoryCloneResult",
 ]

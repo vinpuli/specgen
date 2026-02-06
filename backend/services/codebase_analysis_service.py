@@ -54,6 +54,7 @@ class CodebaseAnalysisService:
         project_id: str,
         repository_url: Optional[str] = None,
         branch_name: Optional[str] = None,
+        commit_sha: Optional[str] = None,
     ) -> CodebaseAnalysis:
         """
         Create a new codebase analysis.
@@ -62,6 +63,7 @@ class CodebaseAnalysisService:
             project_id: Project ID.
             repository_url: Optional repository URL.
             branch_name: Optional branch name.
+            commit_sha: Optional commit SHA.
 
         Returns:
             Created CodebaseAnalysis.
@@ -71,6 +73,7 @@ class CodebaseAnalysisService:
             status=AnalysisStatus.PENDING,
             repository_url=repository_url,
             branch_name=branch_name,
+            commit_sha=commit_sha,
         )
 
         self.session.add(analysis)
