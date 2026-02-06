@@ -62,6 +62,7 @@ class GitHubOAuthTokenExchangeRequest(BaseSchema):
 
     code: str = Field(..., description="Authorization code returned by GitHub")
     redirect_uri: str = Field(..., description="Redirect URI used in OAuth authorize request")
+    state: str = Field(..., description="State token returned by GitHub for CSRF protection")
 
 
 class GitHubOAuthTokenResponse(BaseSchema):

@@ -11,10 +11,10 @@ Provides comprehensive tool documentation:
 """
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Type, Union
 from uuid import UUID
 
 
@@ -473,11 +473,11 @@ class ToolDocumentationGenerator:
             JSON formatted documentation
         """
         if tool_name:
-            return self._tool_docs[tool_name].model_dump_json(indent=2)
+            return json.dumps(asdict(self._tool_docs[tool_name]), indent=2)
 
         docs = {
             "tools": {
-                name: doc.model_dump()
+                name: asdict(doc)
                 for name, doc in self._tool_docs.items()
             },
             "generated_at": datetime.utcnow().isoformat(),

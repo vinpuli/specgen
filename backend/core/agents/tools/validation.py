@@ -18,7 +18,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple, Type, Union
 from uuid import UUID
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic.json_schema import model_json_schema
 
 

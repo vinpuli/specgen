@@ -41,6 +41,8 @@ from backend.services.github_oauth_service import (
     GitHubOAuthConfigError,
     GitHubRepositoryAccessError,
 )
+from backend.cache.cache import get_cache_service
+from backend.cache.connection import DEFAULT_CACHE_TTL
 from backend.services.gitlab_oauth_service import (
     GitLabOAuthService,
     GitLabOAuthError,
@@ -78,15 +80,34 @@ async def get_github_oauth_authorize_url(
     """
     Generate GitHub OAuth authorization URL for brownfield repository access.
     """
-    del current_user
     try:
+        # Persist the OAuth state server-side keyed to the user
+        user_id = current_user.get("user_id") if current_user else None
+        if not user_id:
+            logger.error("Missing user id in current_user when generating OAuth state")
+            raise HTTPException(status_code=400, detail="Invalid user session")
+
         resolved_state = state or secrets.token_urlsafe(32)
+
+        cache = get_cache_service()
+        cache_key = f"oauth:github:state:{user_id}"
+        try:
+            stored = await cache.set(cache_key, resolved_state, ttl=DEFAULT_CACHE_TTL)
+        except Exception as e:
+            logger.error("Failed to persist OAuth state for user %s: %s", user_id, e)
+            raise HTTPException(status_code=500, detail="Failed to persist OAuth state")
+
+        if not stored:
+            logger.error("Redis did not set OAuth state for user %s", user_id)
+            raise HTTPException(status_code=500, detail="Failed to persist OAuth state")
+
         service = GitHubOAuthService()
         auth_url = service.get_authorization_url(
             redirect_uri=redirect_uri,
             state=resolved_state,
             scope=scope,
         )
+
         return GitHubOAuthAuthorizeResponse(
             provider="github",
             auth_url=auth_url,
@@ -113,7 +134,45 @@ async def exchange_github_oauth_token(
     """
     Exchange GitHub OAuth authorization code for access token.
     """
-    del current_user
+    # Verify the state token to prevent CSRF and replay attacks
+    user_id = current_user.get("user_id") if current_user else None
+    if not user_id:
+        logger.error("Missing user id in current_user during token exchange")
+        raise HTTPException(status_code=400, detail="Invalid user session")
+
+    cache = get_cache_service()
+    cache_key = f"oauth:github:state:{user_id}"
+
+    try:
+        stored_state = await cache.get(cache_key)
+    except Exception as e:
+        logger.error("Failed to fetch OAuth state from cache for user %s: %s", user_id, e)
+        raise HTTPException(status_code=500, detail="Failed to verify OAuth state")
+
+    if not stored_state:
+        logger.warning("OAuth state missing or expired for user %s", user_id)
+        raise HTTPException(status_code=400, detail="State token missing or expired")
+
+    if getattr(request, "state", None) != stored_state:
+        logger.warning(
+            "OAuth state mismatch for user %s: incoming=%s stored=%s",
+            user_id,
+            getattr(request, "state", None),
+            stored_state,
+        )
+        # Invalidate stored value to avoid re-use
+        try:
+            await cache.delete(cache_key)
+        except Exception:
+            logger.exception("Failed to delete mismatched OAuth state for user %s", user_id)
+        raise HTTPException(status_code=400, detail="State token mismatch")
+
+    # State matches; remove it to prevent replay
+    try:
+        await cache.delete(cache_key)
+    except Exception:
+        logger.exception("Failed to delete OAuth state after verification for user %s", user_id)
+
     service = GitHubOAuthService()
     try:
         token_data = await service.exchange_code_for_token(

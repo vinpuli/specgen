@@ -8,12 +8,21 @@ This module provides:
 4. Timeout and auto-reject policies
 """
 
-from typing import Any, Dict, List, Optional, Callable, Union
+from typing import Any, Dict, List, Optional, Callable, Union, Awaitable
 from enum import Enum
 from datetime import datetime, timedelta
 from uuid import uuid4
 from pydantic import BaseModel, Field
 from langgraph.types import Interrupt, Command
+import asyncio
+
+
+# ==================== Callback Type Alias ====================
+
+CallbackType = Union[
+    Callable[["InterruptResponse"], None],
+    Callable[["InterruptResponse"], Awaitable[None]],
+]
 
 
 # ==================== Interrupt Types ====================
@@ -1127,17 +1136,14 @@ class InterruptResponseHandler:
     4. Error handling and fallback mechanisms
     """
     
-    # Callback type aliases
-    CallbackType = Union[
-        Callable[[InterruptResponse], None],
-        Callable[[InterruptResponse], Awaitable[None]],
-    ]
+    # Class-level type alias for documentation
+    # Note: Actual CallbackType is defined at module level for proper type checking
     
     def __init__(self):
         """Initialize the response handler."""
-        self._callbacks: Dict[str, List[self.CallbackType]] = {}
-        self._type_callbacks: Dict[InterruptType, List[self.CallbackType]] = {}
-        self._fallbacks: Dict[str, self.CallbackType] = {}
+        self._callbacks: Dict[str, List["CallbackType"]] = {}
+        self._type_callbacks: Dict[InterruptType, List["CallbackType"]] = {}
+        self._fallbacks: Dict[str, "CallbackType"] = {}
         self._error_handlers: List[Callable[[Exception, str], None]] = []
     
     def register_callback(
@@ -1324,12 +1330,7 @@ class InterruptResponseHandler:
         self._type_callbacks.pop(interrupt_type, None)
 
 
-# Import asyncio for async support
-import asyncio
-from typing import Awaitable
 
-
-# ==================== Interrupt Persistence ====================
 
 class InterruptPersistence:
     """
@@ -1635,216 +1636,6 @@ class InterruptPersistence:
             self._redis_client = None
 
 
-class PersistentInterruptManager(InterruptManager):
-    """
-    Extended InterruptManager with persistence support.
-    
-    Provides all InterruptManager functionality plus:
-    1. Automatic persistence of interrupts
-    2. Session state management
-    3. Distributed locking
-    """
-    
-    def __init__(self, redis_url: Optional[str] = None):
-        """
-        Initialize the persistent interrupt manager.
-        
-        Args:
-            redis_url: Optional Redis URL for persistence
-        """
-        super().__init__(redis_url=redis_url)
-        self.redis_url = redis_url
-        self._persistence: Optional[InterruptPersistence] = None
-    
-    @property
-    def persistence(self) -> Optional[InterruptPersistence]:
-        """Get the persistence layer."""
-        return self._persistence
-    
-    async def _ensure_persistence(self) -> Optional[InterruptPersistence]:
-        """Ensure persistence layer is initialized."""
-        if self._persistence is None and self.redis_url:
-            self._persistence = InterruptPersistence(self.redis_url)
-        return self._persistence
-    
-    async def create_interrupt(
-        self,
-        interrupt_type: InterruptType,
-        title: str,
-        description: str,
-        options: Optional[List[str]] = None,
-        priority: InterruptPriority = InterruptPriority.MEDIUM,
-        allow_ignore: bool = True,
-        allow_response: bool = True,
-        timeout_seconds: Optional[int] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        thread_id: Optional[str] = None,
-    ) -> HumanInterruptConfig:
-        """
-        Create a new human interrupt configuration with persistence.
-        
-        Args:
-            interrupt_type: Type of interrupt
-            title: Title of the interrupt
-            description: Detailed description
-            options: Optional list of response options
-            priority: Interrupt priority level
-            allow_ignore: Whether ignore is allowed
-            allow_response: Whether custom response is allowed
-            timeout_seconds: Optional timeout in seconds
-            metadata: Additional metadata
-            thread_id: LangGraph thread ID for persistence
-        
-        Returns:
-            HumanInterruptConfig instance
-        """
-        config = super().create_interrupt(
-            interrupt_type=interrupt_type,
-            title=title,
-            description=description,
-            options=options,
-            priority=priority,
-            allow_ignore=allow_ignore,
-            allow_response=allow_response,
-            timeout_seconds=timeout_seconds,
-            metadata=metadata,
-        )
-        
-        # Persist the interrupt
-        persistence = await self._ensure_persistence()
-        if persistence and thread_id:
-            await persistence.save_interrupt(
-                config.interrupt_id,
-                config,
-                thread_id,
-            )
-        
-        return config
-    
-    async def record_response(
-        self,
-        response: InterruptResponse,
-        thread_id: Optional[str] = None,
-    ) -> None:
-        """
-        Record a human response to an interrupt with persistence.
-        
-        Args:
-            response: Response to record
-            thread_id: LangGraph thread ID for persistence
-        """
-        super().record_response(response)
-        
-        # Persist the response
-        persistence = await self._ensure_persistence()
-        if persistence and thread_id:
-            await persistence.save_response(
-                response.response_id,
-                response,
-                thread_id,
-            )
-    
-    async def resume_interrupts(
-        self,
-        thread_id: str,
-    ) -> List[HumanInterruptConfig]:
-        """
-        Resume all pending interrupts for a thread.
-        
-        Args:
-            thread_id: LangGraph thread ID
-        
-        Returns:
-            List of resumed interrupt configurations
-        """
-        persistence = await self._ensure_persistence()
-        if not persistence:
-            return []
-        
-        interrupt_ids = await persistence.get_thread_interrupts(thread_id)
-        resumed = []
-        
-        for interrupt_id in interrupt_ids:
-            config = await persistence.load_interrupt(interrupt_id, thread_id)
-            if config:
-                # Check if not already responded to
-                if interrupt_id not in self.responses:
-                    self.interrupts[interrupt_id] = config
-                    resumed.append(config)
-        
-        return resumed
-    
-    async def save_session_state(
-        self,
-        thread_id: str,
-        state: Dict[str, Any],
-    ) -> bool:
-        """
-        Save session state for interrupt resumption.
-        
-        Args:
-            thread_id: LangGraph thread ID
-            state: State dictionary to save
-        
-        Returns:
-            True if saved successfully
-        """
-        persistence = await self._ensure_persistence()
-        if persistence:
-            return await persistence.save_session_state(thread_id, state)
-        return False
-    
-    async def load_session_state(
-        self,
-        thread_id: str,
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Load session state for interrupt resumption.
-        
-        Args:
-            thread_id: LangGraph thread ID
-        
-        Returns:
-            State dictionary or None if not found
-        """
-        persistence = await self._ensure_persistence()
-        if persistence:
-            return await persistence.load_session_state(thread_id)
-        return None
-    
-    async def cleanup_thread(
-        self,
-        thread_id: str,
-    ) -> int:
-        """
-        Clean up all data for a thread.
-        
-        Args:
-            thread_id: LangGraph thread ID
-        
-        Returns:
-            Number of items deleted
-        """
-        persistence = await self._ensure_persistence()
-        if not persistence:
-            return 0
-        
-        interrupt_ids = await persistence.get_thread_interrupts(thread_id)
-        count = 0
-        
-        for interrupt_id in interrupt_ids:
-            if await persistence.delete_interrupt(interrupt_id, thread_id):
-                count += 1
-        
-        return count
-    
-    async def close(self) -> None:
-        """Close the persistence connection."""
-        if self._persistence:
-            await self._persistence.close()
-            self._persistence = None
-
-
 # ==================== Interrupt Manager ====================
 
 class InterruptManager:
@@ -2094,6 +1885,120 @@ class InterruptManager:
             if config.interrupt_id not in self.responses
             and not config.is_expired()
         ]
+
+
+class PersistentInterruptManager(InterruptManager):
+    """
+    Extended InterruptManager with Redis persistence for distributed systems.
+    
+    This class adds:
+    1. Redis-based interrupt storage
+    2. Session state persistence
+    3. Distributed lock support
+    """
+    
+    def __init__(self, redis_url: str):
+        """
+        Initialize the Persistent Interrupt Manager.
+        
+        Args:
+            redis_url: Redis connection URL
+        """
+        super().__init__()
+        self.redis_url = redis_url
+        self._persistence = InterruptPersistence(redis_url)
+    
+    async def save_interrupt_async(
+        self,
+        interrupt_id: str,
+        thread_id: str,
+    ) -> bool:
+        """
+        Save an interrupt to Redis persistence.
+        
+        Args:
+            interrupt_id: Unique interrupt identifier
+            thread_id: LangGraph thread ID
+        
+        Returns:
+            True if saved successfully
+        """
+        config = self.interrupts.get(interrupt_id)
+        if config:
+            return await self._persistence.save_interrupt(
+                interrupt_id=interrupt_id,
+                config=config,
+                thread_id=thread_id,
+            )
+        return False
+    
+    async def load_interrupt_async(
+        self,
+        interrupt_id: str,
+        thread_id: str,
+    ) -> Optional[HumanInterruptConfig]:
+        """
+        Load an interrupt from Redis persistence.
+        
+        Args:
+            interrupt_id: Unique interrupt identifier
+            thread_id: LangGraph thread ID
+        
+        Returns:
+            Interrupt configuration or None if not found
+        """
+        return await self._persistence.load_interrupt(
+            interrupt_id=interrupt_id,
+            thread_id=thread_id,
+        )
+    
+    async def save_response_async(
+        self,
+        response_id: str,
+        thread_id: str,
+    ) -> bool:
+        """
+        Save a response to Redis persistence.
+        
+        Args:
+            response_id: Unique response identifier
+            thread_id: LangGraph thread ID
+        
+        Returns:
+            True if saved successfully
+        """
+        response = self.responses.get(response_id)
+        if response:
+            return await self._persistence.save_response(
+                response_id=response_id,
+                response=response,
+                thread_id=thread_id,
+            )
+        return False
+    
+    async def load_response_async(
+        self,
+        response_id: str,
+        thread_id: str,
+    ) -> Optional[InterruptResponse]:
+        """
+        Load a response from Redis persistence.
+        
+        Args:
+            response_id: Unique response identifier
+            thread_id: LangGraph thread ID
+        
+        Returns:
+            Response or None if not found
+        """
+        return await self._persistence.load_response(
+            response_id=response_id,
+            thread_id=thread_id,
+        )
+    
+    async def close(self) -> None:
+        """Close the Redis connection."""
+        await self._persistence.close()
 
 
 # ==================== LangGraph Interrupt Helpers ====================
