@@ -23,7 +23,7 @@ const variantClass: Record<ToastVariant, string> = {
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [queue, setQueue] = useState<ToastItem[]>([])
-  const timeoutIdsRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
+  const timeoutIdsRef = useRef<Map<string, number>>(new Map())
 
   const removeToast = useCallback((id: string) => {
     const timeoutId = timeoutIdsRef.current.get(id)
