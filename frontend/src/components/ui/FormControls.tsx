@@ -1,6 +1,6 @@
 import { useId, useState, type InputHTMLAttributes } from 'react'
 
-export function Checkbox({ label, ...props }: InputHTMLAttributes<HTMLInputElement> & { label: string }) {
+export function Checkbox({ label, ...props }: InputHTMLAttributes<HTMLInputElement> & { label?: React.ReactNode }) {
   const id = useId()
   return (
     <label htmlFor={id} className="inline-flex items-center gap-2 text-sm text-fg">

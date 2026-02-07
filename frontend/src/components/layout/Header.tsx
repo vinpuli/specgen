@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { useAuth } from '../../hooks/useAuth'
 import { Avatar, DropdownMenu } from '../ui'
 
 type HeaderProps = {
@@ -19,6 +20,7 @@ function humanize(segment: string): string {
 
 export function Header({ title }: HeaderProps) {
   const location = useLocation()
+  const { logout } = useAuth()
 
   const breadcrumbs = useMemo(() => {
     const segments = location.pathname.split('/').filter(Boolean)
@@ -60,7 +62,7 @@ export function Header({ title }: HeaderProps) {
           items={[
             { id: 'profile', label: 'Profile', onSelect: () => console.info('Profile selected') },
             { id: 'workspace', label: 'Workspace Settings', onSelect: () => console.info('Workspace selected') },
-            { id: 'logout', label: 'Logout', onSelect: () => console.info('Logout selected') },
+            { id: 'logout', label: 'Logout', onSelect: logout },
           ]}
         />
       </div>

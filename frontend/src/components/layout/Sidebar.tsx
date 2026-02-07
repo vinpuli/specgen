@@ -1,14 +1,12 @@
 import { NavLink } from 'react-router-dom'
 import { Select, type SelectOption } from '../ui'
-
-const workspaceOptions: SelectOption[] = [
-  { value: 'default', label: 'Default Workspace' },
-  { value: 'clinical', label: 'Clinical Team' },
-  { value: 'operations', label: 'Operations Team' },
-]
+import { useWorkspaceStore } from '../../store/workspaceStore'
 
 const navItems = [
   { to: '/', label: 'Home' },
+  { to: '/workspaces', label: 'Workspaces' },
+  { to: '/workspace/settings', label: 'Workspace Settings' },
+  { to: '/workspace/members', label: 'Workspace Members' },
   { to: '/projects', label: 'Projects' },
   { to: '/settings', label: 'Settings' },
 ]
@@ -21,13 +19,42 @@ function linkClass(isActive: boolean): string {
 }
 
 export function Sidebar() {
+  const workspaces = useWorkspaceStore((state) => state.workspaces)
+  const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
+  const setActiveWorkspace = useWorkspaceStore((state) => state.setActiveWorkspace)
+
+  const workspaceOptions: SelectOption[] = (workspaces ?? []).length
+    ? workspaces.map((workspace) => ({ value: workspace.id, label: workspace.name }))
+    : []
+
+  // ensure activeWorkspaceId is valid for the current options
+  const validActiveWorkspaceId = workspaceOptions.find((o) => o.value === activeWorkspaceId)
+    ? activeWorkspaceId
+    : workspaceOptions.length > 0
+    ? workspaceOptions[0].value
+    : ''
+
   return (
     <aside className="flex h-full w-72 shrink-0 flex-col border-r border-border bg-surface/95 px-4 py-5">
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">SpecGen</p>
         <p className="mt-1 text-sm text-fg/70">Workspace</p>
         <div className="mt-3">
-          <Select options={workspaceOptions} defaultValue="default" aria-label="Workspace switcher" />
+          <Select
+            options={workspaceOptions}
+            value={validActiveWorkspaceId}
+            onChange={(event) => {
+              const next = event.target.value || undefined
+              // tolerate empty/undefined selections
+              if (!next) {
+                setActiveWorkspace('')
+                return
+              }
+              setActiveWorkspace(next)
+            }}
+            aria-label="Workspace switcher"
+            disabled={workspaceOptions.length === 0}
+          />
         </div>
       </div>
 

@@ -7,7 +7,10 @@ import './i18n/config'
 import App from './App.tsx'
 import { ErrorBoundary } from './components/error/ErrorBoundary'
 import { ToastProvider } from './components/ui'
+import { initializeAuthSessionAutoRefresh } from './lib/authSession'
 import { queryClient } from './lib/queryClient'
+
+initializeAuthSessionAutoRefresh()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
